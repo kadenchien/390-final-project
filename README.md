@@ -246,8 +246,16 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 
 ## Running Locally
 
+### Phase 1 — single server (no peers yet)
+
 ```bash
-# Start five servers
+go run ./cmd/server --port=50051
+```
+
+### Full cluster (Phase 2+)
+
+```bash
+# Start five servers (each in its own terminal)
 go run ./cmd/server --id=1 --port=50051 --peers=localhost:50052,localhost:50053,localhost:50054,localhost:50055
 go run ./cmd/server --id=2 --port=50052 --peers=localhost:50051,localhost:50053,localhost:50054,localhost:50055
 go run ./cmd/server --id=3 --port=50053 --peers=localhost:50051,localhost:50052,localhost:50054,localhost:50055

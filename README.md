@@ -27,17 +27,17 @@ The core distributed systems contributions are:
 │  └─────────────────────────────────────────────────┘   │
 └───────────────────────┬─────────────────────────────────┘
                         │ gRPC
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-     ┌─────────┐  ┌─────────┐  ┌─────────┐
-     │ Server 1│  │ Server 2│  │ Server 3│
-     │ :50051  │  │ :50052  │  │ :50053  │
-     │ LEADER  │  │follower │  │follower │
-     └─────────┘  └─────────┘  └─────────┘
-          │             │             │
-          └─────────────┴─────────────┘
-             synchronous replication (W=N)
-             heartbeat ping every 200ms
+     ┌──────┬───────────┼───────────┬──────┐
+     ▼      ▼           ▼           ▼      ▼
+ ┌──────┐┌──────┐  ┌──────┐  ┌──────┐┌──────┐
+ │Srv 1 ││Srv 2 │  │Srv 3 │  │Srv 4 ││Srv 5 │
+ │:50051││:50052│  │:50053│  │:50054││:50055│
+ │LEADER││follwr│  │follwr│  │follwr││follwr│
+ └──────┘└──────┘  └──────┘  └──────┘└──────┘
+     │       │         │         │       │
+     └───────┴─────────┴─────────┴───────┘
+           synchronous replication (W=N)
+           heartbeat ping every 200ms
 ```
 
 **Server state**: Each server holds `map[string]int64` (counter name → value) plus a reply cache `map["clientID:requestID"]IncrResponse`. Both are kept in sync via a `Replicate` RPC before the leader acks any client request.
@@ -97,7 +97,7 @@ Each server runs a heartbeat goroutine that pings the current leader every 200ms
 1. Increment `view_number`
 2. Compute `new_leader = servers[view_number % len(servers)]` (round-robin)
 3. Broadcast `ViewChange(view_number)` to all peers
-4. A server only **commits** the new view when it hears the same `view_number` from a majority (≥2 of 3 servers) — preventing split-brain
+4. A server only **commits** the new view when it hears the same `view_number` from a majority (≥3 of 5 servers) — preventing split-brain
 
 The new leader is immediately ready to serve because all followers already hold the full counter state and reply cache via synchronous replication (W=N).
 
@@ -144,14 +144,14 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 
 ### Phase 1 — Foundations (proto, state, basic RPC)
 
-- [ ] Set up Go module, install `google.golang.org/grpc` and `google.golang.org/protobuf`
-- [ ] Write `counter.proto` with `IncrCounter`, `GetCounter`, `Ping`, `ViewChange`, `Replicate`, `TransferState`
-- [ ] Run `protoc` to generate Go stubs
+- [x] Set up Go module, install `google.golang.org/grpc` and `google.golang.org/protobuf`
+- [x] Write `counter.proto` with `IncrCounter`, `GetCounter`, `Ping`, `ViewChange`, `Replicate`, `TransferState`
+- [x] Run `protoc` to generate Go stubs
 - [ ] Implement basic server: `map[string]int64` counter state with `sync.RWMutex`
 - [ ] Write a minimal client that connects and increments a counter
-- [ ] Launch three server processes on `:50051`, `:50052`, `:50053`
+- [ ] Launch five server processes on `:50051`–`:50055`
 
-**Deliverable**: Three servers running locally; client increments "foo" N times and `GetCounter("foo")` returns exactly N.
+**Deliverable**: Five servers running locally; client increments "foo" N times and `GetCounter("foo")` returns exactly N.
 
 ### Phase 2 — Leader Election (VR-style view change)
 
@@ -195,7 +195,7 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 - [ ] Write `cmd/loadgen/main.go`: N goroutines each doing M sequential increments with configurable think time; record per-RPC `(start_ns, end_ns, status, attempt_count)` to CSV
 - [ ] Add a `-kill-after` flag: after a configurable number of RPCs, send `SIGTERM` or `SIGKILL` to the leader process
 - [ ] Run the following experimental conditions and collect CSVs:
-  1. **Baseline**: no failures, 3-server cluster — measure steady-state latency (p50, p95, p99)
+  1. **Baseline**: no failures, 5-server cluster — measure steady-state latency (p50, p95, p99)
   2. **Planned failover**: `SIGTERM` to leader — measure failover latency
   3. **Hard crash**: `SIGKILL` to leader — measure failover latency and dropped-request count
   4. **Follower failure**: kill a non-leader — system stays up, verify correctness
@@ -247,17 +247,19 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 ## Running Locally
 
 ```bash
-# Start three servers
-go run ./cmd/server --id=1 --port=50051 --peers=localhost:50052,localhost:50053
-go run ./cmd/server --id=2 --port=50052 --peers=localhost:50051,localhost:50053
-go run ./cmd/server --id=3 --port=50053 --peers=localhost:50051,localhost:50052
+# Start five servers
+go run ./cmd/server --id=1 --port=50051 --peers=localhost:50052,localhost:50053,localhost:50054,localhost:50055
+go run ./cmd/server --id=2 --port=50052 --peers=localhost:50051,localhost:50053,localhost:50054,localhost:50055
+go run ./cmd/server --id=3 --port=50053 --peers=localhost:50051,localhost:50052,localhost:50054,localhost:50055
+go run ./cmd/server --id=4 --port=50054 --peers=localhost:50051,localhost:50052,localhost:50053,localhost:50055
+go run ./cmd/server --id=5 --port=50055 --peers=localhost:50051,localhost:50052,localhost:50053,localhost:50054
 
 # Run the interactive client (connects to initial leader at :50051)
-go run ./cmd/client --servers=localhost:50051,localhost:50052,localhost:50053
+go run ./cmd/client --servers=localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055
 
 # Run the load generator (100 goroutines, 10 increments each, kill leader after 500 RPCs)
 go run ./cmd/loadgen \
-  --servers=localhost:50051,localhost:50052,localhost:50053 \
+  --servers=localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055 \
   --goroutines=100 \
   --increments=10 \
   --kill-after=500 \
@@ -265,12 +267,48 @@ go run ./cmd/loadgen \
   --out=results/hard_crash.csv
 ```
 
+## Project Setup
+
+### Prerequisites
+
+- [Go 1.22+](https://go.dev/dl/)
+- [protoc](https://grpc.io/docs/protoc-installation/) (Protocol Buffers compiler)
+- protoc Go plugins:
+
+```bash
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+```
+
+Make sure `$(go env GOPATH)/bin` is on your `PATH` so the plugins are found by `protoc`.
+
+### Getting started
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/kadenchien/390-final-project.git
+cd 390-final-project
+
+# 2. Download Go dependencies
+go mod tidy
+
+# 3. (Optional) Regenerate proto stubs if you modify counter.proto
+protoc \
+  --go_out=. \
+  --go_opt=module=github.com/kadenchien/390-final-project \
+  --go-grpc_out=. \
+  --go-grpc_opt=module=github.com/kadenchien/390-final-project \
+  ./proto/counter.proto
+```
+
+The generated files under `gen/` are committed to the repo, so step 3 is only needed if you change `counter.proto`.
+
 ## Key Design Decisions and Tradeoffs
 
 | Decision | Choice | Alternative | Why |
 |---|---|---|---|
 | Leader election | VR round-robin view change | Full Raft | Raft adds log replication complexity that isn't the focus; VR is sufficient |
-| Replication | W=N synchronous to all replicas | Quorum write (W=2 of 3) | Eliminates log repair and catch-up on failover; any follower is instantly ready |
+| Replication | W=N synchronous to all replicas | Quorum write (W=3 of 5) | Eliminates log repair and catch-up on failover; any follower is instantly ready |
 | Client redirect | Custom interceptor inspecting `redirect_to` field | Proxy sidecar (Envoy) | Demonstrates the gRPC interceptor model directly; proxy hides the mechanism |
 | Dedup scope | Assume clients never fail | RIFL session leases | Session leases add significant complexity; assumption acceptable for this scope |
 | Backoff | `go-grpc-middleware` exponential + jitter | Custom | Fully solved problem; library code is correct and battle-tested |

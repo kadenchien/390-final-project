@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"sync"
+	"sort"
 	"sync"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
@@ -16,20 +16,30 @@ import (
 type Server struct {
 	pb.UnimplementedCounterServiceServer
 
-	mu       sync.RWMutex
-	counters map[string]int64
-	id int //server's ID
-	self string //server address
-	peers []string //address of other servers in cluster
+	mu         sync.RWMutex
+	counters   map[string]int64
+	id         int      // server's ID
+	self       string   // server address
+	peers      []string // address of other servers in cluster
+	allServers []string // sorted list of all servers (self + peers)
+	leaderAddr string   // current known leader address
 
+	viewNumber int64                     // current view number (accessed atomically)
+	viewVotes  map[int64]map[string]bool // votes received per view number
 }
 
 func New(id int, self string, peers []string) *Server {
+	all := append([]string{self}, peers...)
+	sort.Strings(all)
+
 	return &Server{
-		counters: make(map[string]int64),
-		id: id,
-		self: self,
-		peers: peers,
+		counters:   make(map[string]int64),
+		id:         id,
+		self:       self,
+		peers:      peers,
+		allServers: all,
+		leaderAddr: all[0], // initial leader is the first server in sorted order
+		viewVotes:  make(map[int64]map[string]bool),
 	}
 }
 

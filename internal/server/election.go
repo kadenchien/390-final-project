@@ -18,7 +18,7 @@ const (
 
 //ping gives confirmation that server is alive & returns current view #
 func (s *Server) Ping(_ context.Context, req *pb.PingRequest) (*pb.PingResponse, error) {
-	return &pb.PingResponse{OK: true, ViewNumber: atomic.LoadInt64(&s.viewNumber)}, nil
+	return &pb.PingResponse{Ok: true, ViewNumber: atomic.LoadInt64(&s.viewNumber)}, nil
 }
 
 //StartHeartbeat - called from main when server starts
@@ -91,6 +91,58 @@ func (s *Server) initiateViewChange() {
 	log.Printf("[%s] initiating view change to view %d, new leader %s", s.self, newView, newLeader)
 
 	s.broadcastViewChange(newView)
+}
+
+// ViewChange RPC handler. This is called by peers when they want to initiate a view change
+// Tracks votes per view number and commits when a majority is reached
+func (s *Server) ViewChange(_ context.Context, msg *pb.ViewChangeMsg) (*pb.ViewChangeAck, error) {
+	currentView := atomic.LoadInt64(&s.viewNumber)
+
+	// Reject stale messages
+	if msg.ViewNumber <= currentView {
+		return &pb.ViewChangeAck{Accepted: false, ViewNumber: currentView}, nil
+	}
+
+	majority := len(s.allServers)/2 + 1
+
+	s.mu.Lock()
+	if s.viewVotes[msg.ViewNumber] == nil {
+		// If it's the first time seeing this view, agree
+		s.viewVotes[msg.ViewNumber] = map[string]bool{s.self: true}
+	}
+	s.viewVotes[msg.ViewNumber][msg.SenderId] = true
+	votes := len(s.viewVotes[msg.ViewNumber])
+	s.mu.Unlock()
+
+	log.Printf("[%s] view %d has %d/%d votes", s.self, msg.ViewNumber, votes, majority)
+
+	if votes >= majority {
+		s.commitView(msg.ViewNumber)
+	}
+
+	return &pb.ViewChangeAck{Accepted: true, ViewNumber: msg.ViewNumber}, nil
+}
+
+// update viewNumber to newView and update leaderAddr
+// Use compare-and-swap to avoid overwrites
+func (s *Server) commitView(newView int64) {
+	for {
+		current := atomic.LoadInt64(&s.viewNumber)
+		if newView <= current {
+			// already at or past this view, so don't do anything
+			return 
+		}
+		if atomic.CompareAndSwapInt64(&s.viewNumber, current, newView) {
+			break
+		}
+	}
+
+	newLeader := s.allServers[newView%int64(len(s.allServers))]
+	s.mu.Lock()
+	s.leaderAddr = newLeader
+	s.mu.Unlock()
+
+	log.Printf("[%s] committed view %d, new leader %s", s.self, newView, newLeader)
 }
 
 //sends ViewChange RPC to peer w new view #

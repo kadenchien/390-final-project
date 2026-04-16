@@ -34,8 +34,11 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	srv := server.New(*id, self, peerList)
+	srv.StartHeartbeat()
+
 	grpcServer := grpc.NewServer()
-	pb.RegisterCounterServiceServer(grpcServer, server.New(*id, self,))
+	pb.RegisterCounterServiceServer(grpcServer, srv)
 
 	log.Printf("server listening on :%d", *port)
 	if err := grpcServer.Serve(lis); err != nil {

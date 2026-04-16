@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"sync"
+	"sync"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
 	"google.golang.org/grpc/codes"

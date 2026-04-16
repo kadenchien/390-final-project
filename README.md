@@ -182,16 +182,16 @@ The redirect mechanism on the server side is correct and complete — the `redir
 
 ### Phase 3 — Client-Side Interceptor (transparent failover)
 
-- [ ] Install `github.com/grpc-ecosystem/go-grpc-middleware/v2`
-- [ ] Implement `requestIDInterceptor`: stamps `clientID` + `requestID` on every outgoing call; reuses `requestID` on retries of the same logical op
-- [ ] Implement `LeaderInterceptor` struct with a shared leader tracker (`sync.RWMutex` + current `*grpc.ClientConn` + membership list)
-- [ ] Implement `LeaderInterceptor.Unary()`: inspect `redirect_to` on every response; if non-empty, call `rebind()` and loop (up to `maxRedirects`)
-- [ ] Wire up interceptor chain with `grpc.WithChainUnaryInterceptor`:
+- [x] Install `github.com/grpc-ecosystem/go-grpc-middleware/v2`
+- [x] Implement `requestIDInterceptor`: stamps `clientID` + `requestID` on every outgoing call; reuses `requestID` on retries of the same logical op
+- [x] Implement `LeaderInterceptor` struct with a shared leader tracker (`sync.RWMutex` + current `*grpc.ClientConn` + membership list)
+- [x] Implement `LeaderInterceptor.Unary()`: inspect `redirect_to` on every response; if non-empty, call `rebind()` and loop (up to `maxRedirects`)
+- [x] Wire up interceptor chain with `grpc.WithChainUnaryInterceptor`:
   - outermost: `logging.UnaryClientInterceptor`
   - `requestIDInterceptor`
   - `leaderInterceptor.Unary()`
   - innermost: `retry.UnaryClientInterceptor` with `codes.Unavailable`, max 5, exponential backoff 50ms + 10% jitter
-- [ ] Implement server-side: non-leader returns `redirect_to = knownLeaderAddr` in response
+- [x] Implement server-side: non-leader returns `redirect_to = knownLeaderAddr` in response
 
 **Deliverable**: Client streams 100 increments to "foo"; kill the leader mid-stream; client detects failure, rebinds, all 100 complete with no duplicates in `GetCounter("foo")`.
 

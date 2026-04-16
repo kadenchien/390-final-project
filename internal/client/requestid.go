@@ -17,7 +17,7 @@ type RequestIDInterceptor struct {
 
 func NewRequestIDInterceptor() *RequestIDInterceptor {
 	return &RequestIDInterceptor{
-		clientID: uuid.New().String(),add
+		clientID: uuid.New().String(),
 	}
 }
 

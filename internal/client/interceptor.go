@@ -16,9 +16,15 @@ type LeaderInterceptor struct {
 	mu         sync.RWMutex
 	currConn   *grpc.ClientConn
 	leaderAddr string
+	peers      []string
+	peerIdx    int
 }
 
-func NewLeaderInterceptor(initialLeader string) (*LeaderInterceptor, error) {
+func NewLeaderInterceptor(peers []string) (*LeaderInterceptor, error) {
+	if len(peers) == 0 {
+		return nil, fmt.Errorf("no peers provided")
+	}
+	initialLeader := peers[0]
 	conn, err := grpc.NewClient(initialLeader, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
@@ -26,6 +32,8 @@ func NewLeaderInterceptor(initialLeader string) (*LeaderInterceptor, error) {
 	return &LeaderInterceptor{
 		currConn:   conn,
 		leaderAddr: initialLeader,
+		peers:      peers,
+		peerIdx:    0,
 	}, nil
 }
 
@@ -80,19 +88,27 @@ func (l *LeaderInterceptor) Unary() grpc.UnaryClientInterceptor {
 			err := invoker(ctx, method, req, reply, activeConn, opts...)
 
 			if err != nil {
-				return err
+				l.mu.Lock()
+				l.peerIdx = (l.peerIdx + 1) % len(l.peers)
+				nextPeer := l.peers[l.peerIdx]
+				l.mu.Unlock()
+
+				log.Printf("[Interceptor] Connection failed. Trying backup peer to find new leader: %s", nextPeer)
+				if bindErr := l.rebind(nextPeer); bindErr != nil {
+					return fmt.Errorf("failed to bind to backup peer: %w", bindErr)
+				}
+				continue
 			}
 
 			// success --> check if it was a redirect
 			if incrResp, ok := reply.(*pb.IncrResponse); ok && incrResp.RedirectTo != "" {
-				log.Printf("[Interceptor] Caught redirect hint. Old leader was wrong, new leader is: %s", incrResp.RedirectTo)
-				
+				log.Printf("[Interceptor] Caught redirect hint. New leader is: %s", incrResp.RedirectTo)
+
 				if bindErr := l.rebind(incrResp.RedirectTo); bindErr != nil {
 					return fmt.Errorf("failed to rebind: %w", bindErr)
 				}
 				
 				incrResp.RedirectTo = ""
-				
 				continue 
 			}
 

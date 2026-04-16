@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"time"
+	"strings"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
 	"google.golang.org/grpc"
@@ -23,13 +24,15 @@ func loggingInterceptor(ctx context.Context, method string, req, reply any, cc *
 }
 
 func main() {
-	server     := flag.String("server", "localhost:50051", "server address")
+	serversStr := flag.String("servers", "localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055", "comma-separated server addresses")
 	counterID  := flag.String("counter", "foo", "counter name to increment")
 	increments := flag.Int("increments", 5, "number of times to increment")
 	flag.Parse()
 
+	peers := strings.Split(*serversStr, ",")
+
     reqIDInterceptor := client.NewRequestIDInterceptor()
-    leaderInterceptor, err := client.NewLeaderInterceptor(*server)
+    leaderInterceptor, err := client.NewLeaderInterceptor(peers)
     if err != nil {
         log.Fatalf("failed to initialize leader interceptor: %v", err)
     }
@@ -41,7 +44,7 @@ func main() {
         retry.WithBackoff(retry.BackoffExponentialWithJitter(50*time.Millisecond, 0.10)),
     }
 
-	conn, err := grpc.NewClient(*server, 
+	conn, err := grpc.NewClient(peers[0], 
         grpc.WithTransportCredentials(insecure.NewCredentials()),
         grpc.WithChainUnaryInterceptor(
             loggingInterceptor,

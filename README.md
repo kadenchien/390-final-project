@@ -249,8 +249,17 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 ### Phase 1 — single server (no peers yet)
 
 ```bash
+# Terminal 1 — start the server
 go run ./cmd/server --port=50051
+
+# Terminal 2 — run the client
+go run ./cmd/client --server=localhost:50051 --counter=foo --increments=5
 ```
+
+Client flags:
+- `--server` — server address (default `localhost:50051`)
+- `--counter` — counter name to increment (default `foo`)
+- `--increments` — number of increments to perform (default `5`)
 
 ### Full cluster (Phase 2+)
 

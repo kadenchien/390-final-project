@@ -84,8 +84,16 @@ func (s *Server) initiateViewChange() {
 	newView := atomic.AddInt64(&s.viewNumber, 1)
 	newLeader := s.allServers[newView%int64(len(s.allServers))]
 
+	// Enter view change mode before updating leaderAddr or broadcasting
+	atomic.StoreInt32(&s.inViewChange, 1)
+
 	s.mu.Lock()
 	s.leaderAddr = newLeader
+	// Seed our own vote so it counts when peers' ViewChange RPCs arrive
+	if s.viewVotes[newView] == nil {
+		s.viewVotes[newView] = make(map[string]bool)
+	}
+	s.viewVotes[newView][s.self] = true
 	s.mu.Unlock()
 
 	log.Printf("[%s] initiating view change to view %d, new leader %s", s.self, newView, newLeader)
@@ -99,15 +107,20 @@ func (s *Server) ViewChange(_ context.Context, msg *pb.ViewChangeMsg) (*pb.ViewC
 	currentView := atomic.LoadInt64(&s.viewNumber)
 
 	// Reject stale messages
-	if msg.ViewNumber <= currentView {
+	if msg.ViewNumber < currentView {
 		return &pb.ViewChangeAck{Accepted: false, ViewNumber: currentView}, nil
+	}
+
+	// If this is a higher view than we know about, enter view change mode
+	if msg.ViewNumber > currentView {
+		atomic.StoreInt32(&s.inViewChange, 1)
 	}
 
 	majority := len(s.allServers)/2 + 1
 
 	s.mu.Lock()
 	if s.viewVotes[msg.ViewNumber] == nil {
-		// If it's the first time seeing this view, agree
+		// First time seeing this view — count ourselves as agreeing
 		s.viewVotes[msg.ViewNumber] = map[string]bool{s.self: true}
 	}
 	s.viewVotes[msg.ViewNumber][msg.SenderId] = true
@@ -116,21 +129,23 @@ func (s *Server) ViewChange(_ context.Context, msg *pb.ViewChangeMsg) (*pb.ViewC
 
 	log.Printf("[%s] view %d has %d/%d votes", s.self, msg.ViewNumber, votes, majority)
 
-	if votes >= majority {
+	if votes == majority {
 		s.commitView(msg.ViewNumber)
 	}
 
 	return &pb.ViewChangeAck{Accepted: true, ViewNumber: msg.ViewNumber}, nil
 }
 
-// update viewNumber to newView and update leaderAddr
-// Use compare-and-swap to avoid overwrites
+// commitView advances viewNumber to newView (if not already there), updates leaderAddr,
+// and clears inViewChange so the new leader can begin serving requests.
 func (s *Server) commitView(newView int64) {
 	for {
 		current := atomic.LoadInt64(&s.viewNumber)
-		if newView <= current {
-			// already at or past this view, so don't do anything
-			return 
+		if newView < current {
+			return // a newer view was already committed; nothing to do
+		}
+		if newView == current {
+			break // initiator already set viewNumber via AddInt64; just clear the flag
 		}
 		if atomic.CompareAndSwapInt64(&s.viewNumber, current, newView) {
 			break
@@ -142,6 +157,8 @@ func (s *Server) commitView(newView int64) {
 	s.leaderAddr = newLeader
 	s.mu.Unlock()
 
+	// Majority reached. This means the new leader is now ready to serve
+	atomic.StoreInt32(&s.inViewChange, 0)
 	log.Printf("[%s] committed view %d, new leader %s", s.self, newView, newLeader)
 }
 

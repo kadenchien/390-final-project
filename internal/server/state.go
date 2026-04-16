@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
 	"google.golang.org/grpc/codes"
@@ -24,8 +25,9 @@ type Server struct {
 	allServers []string // sorted list of all servers (self + peers)
 	leaderAddr string   // current known leader address
 
-	viewNumber int64                     // current view number (accessed atomically)
-	viewVotes  map[int64]map[string]bool // votes received per view number
+	viewNumber   int64                     // current view number (accessed atomically)
+	viewVotes    map[int64]map[string]bool // votes received per view number
+	inViewChange int32                     // 1 while a view change is in progress (accessed atomically)
 }
 
 func New(id int, self string, peers []string) *Server {
@@ -43,10 +45,20 @@ func New(id int, self string, peers []string) *Server {
 	}
 }
 
-// Acquires write lock then increments counter by one and returns new value
+// Acquires write lock then increments counter by one and returns new value.
+// Redirects to the current leader if this server is a follower.
+// Returns Unavailable if this server is the leader but a view change is in progress.
 func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrResponse, error) {
 	if req.CounterId == "" {
 		return nil, status.Error(codes.InvalidArgument, "counter_id must not be empty")
+	}
+
+	if leader := s.currentLeader(); leader != s.self {
+		return &pb.IncrResponse{RedirectTo: leader}, nil
+	}
+
+	if atomic.LoadInt32(&s.inViewChange) == 1 {
+		return nil, status.Error(codes.Unavailable, "view change in progress")
 	}
 
 	s.mu.Lock()
@@ -57,10 +69,20 @@ func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrRe
 	return &pb.IncrResponse{NewValue: val}, nil
 }
 
-// Acquires read lock then returns current value (0 if counter doesn't exist yet)
+// Acquires read lock then returns current value (0 if counter doesn't exist yet).
+// Redirects to the current leader if this server is a follower.
+// Returns Unavailable if this server is the leader but a view change is in progress.
 func (s *Server) GetCounter(_ context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
 	if req.CounterId == "" {
 		return nil, status.Error(codes.InvalidArgument, "counter_id must not be empty")
+	}
+
+	if leader := s.currentLeader(); leader != s.self {
+		return &pb.GetResponse{RedirectTo: leader}, nil
+	}
+
+	if atomic.LoadInt32(&s.inViewChange) == 1 {
+		return nil, status.Error(codes.Unavailable, "view change in progress")
 	}
 
 	s.mu.RLock()

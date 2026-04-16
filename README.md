@@ -160,10 +160,25 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 - [x] Implement heartbeat goroutine: ping leader every 200ms, track consecutive misses
 - [x] On 3 missed pings: increment `view_number`, compute new leader, broadcast `ViewChange`
 - [x] Implement `ViewChange` RPC handler: accept view when majority agrees on same `view_number`
-- [ ] Leader refuses requests and returns `Unavailable` during view-change window
-- [ ] New leader begins serving once view is committed
+- [x] Leader refuses requests and returns `Unavailable` during view-change window
+- [x] New leader begins serving once view is committed
 
 **Deliverable**: Kill server 1 mid-run; servers 2 and 3 agree on a new leader within ~1 second, visible in logs.
+
+#### Current limitations (resolved in Phases 3 & 4)
+
+**Each server has its own independent counter map.** W=N replication is not yet implemented, so writes are not propagated to followers. Each server maintains its own `map[string]int64` that is completely unaware of writes on other servers. If you increment `foo` on the leader and then the leader fails, the new leader starts with `foo = 0`. This is fixed in Phase 4 when the `Replicate` RPC is added.
+
+**Sending a request to a follower returns 0.** Followers already return a `redirect_to` field in the response pointing at the current leader, but the Phase 2 client has no logic to follow that redirect. It reads `resp.NewValue` directly, which is `0` since the follower never actually executed the increment. For example, say 50051 is the leader and we try to increment 50052's map:
+
+```bash
+go run ./cmd/client -server=localhost:50052 -counter=foo -increments=2
+2026/04/16 02:44:18 increment #1 → 0
+2026/04/16 02:44:18 increment #2 → 0
+2026/04/16 02:44:18 final GetCounter("foo") = 0
+```
+
+The redirect mechanism on the server side is correct and complete — the `redirect_to` field is populated. The client-side interceptor that reads it and dials the leader is Phase 3 work.
 
 ### Phase 3 — Client-Side Interceptor (transparent failover)
 
@@ -270,6 +285,32 @@ go run ./cmd/server --id=2 --port=50052 --peers=localhost:50051,localhost:50053,
 go run ./cmd/server --id=3 --port=50053 --peers=localhost:50051,localhost:50052,localhost:50054,localhost:50055
 go run ./cmd/server --id=4 --port=50054 --peers=localhost:50051,localhost:50052,localhost:50053,localhost:50055
 go run ./cmd/server --id=5 --port=50055 --peers=localhost:50051,localhost:50052,localhost:50053,localhost:50054
+```
+
+### Testing Phase 2 — View Change
+
+With all five servers running, kill the current leader (`Ctrl+C` on its terminal) and watch the surviving servers' logs. Within ~600ms you should see output like the following on the remaining terminals:
+
+```bash
+[localhost:50053] missed ping to leader localhost:50051 (1/3)
+[localhost:50053] missed ping to leader localhost:50051 (2/3)
+[localhost:50053] missed ping to leader localhost:50051 (3/3)
+[localhost:50053] initiating view change to view 1, new leader localhost:50052
+[localhost:50053] view 1 has 2/3 votes
+[localhost:50053] view 1 has 3/3 votes
+[localhost:50053] committed view 1, new leader localhost:50052
+```
+
+**Note:** not every surviving server will necessarily log all three missed pings or the "initiating view change" line. If a server receives enough `ViewChange` RPCs from peers and reaches majority before its own heartbeat loop fires a third time, it will commit the new view without ever initiating a view change itself. This is correct — the view change completed faster than that server's own timeout. Example of this:
+
+```bash
+2026/04/16 02:32:03 [localhost:50053] committed view 1, new leader localhost:50052
+2026/04/16 02:32:55 [localhost:50053] missed ping to leader localhost:50052 (1/3)
+2026/04/16 02:32:56 [localhost:50053] missed ping to leader localhost:50052 (2/3)
+2026/04/16 02:32:56 [localhost:50053] view 2 has 2/3 votes
+2026/04/16 02:32:56 [localhost:50053] view 2 has 3/3 votes
+2026/04/16 02:32:56 [localhost:50053] committed view 2, new leader localhost:5005
+```
 
 # Run the interactive client (connects to initial leader at :50051)
 go run ./cmd/client --servers=localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055

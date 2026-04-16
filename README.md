@@ -147,9 +147,9 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 - [x] Set up Go module, install `google.golang.org/grpc` and `google.golang.org/protobuf`
 - [x] Write `counter.proto` with `IncrCounter`, `GetCounter`, `Ping`, `ViewChange`, `Replicate`, `TransferState`
 - [x] Run `protoc` to generate Go stubs
-- [ ] Implement basic server: `map[string]int64` counter state with `sync.RWMutex`
-- [ ] Write a minimal client that connects and increments a counter
-- [ ] Launch five server processes on `:50051`–`:50055`
+- [x] Implement basic server: `map[string]int64` counter state with `sync.RWMutex`
+- [x] Write a minimal client that connects and increments a counter
+- [x] Launch five server processes on `:50051`–`:50055`
 
 **Deliverable**: Five servers running locally; client increments "foo" N times and `GetCounter("foo")` returns exactly N.
 

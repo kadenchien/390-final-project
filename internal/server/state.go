@@ -17,11 +17,18 @@ type Server struct {
 
 	mu       sync.RWMutex
 	counters map[string]int64
+	id int //server's ID
+	self string //server address
+	peers []string //address of other servers in cluster
+
 }
 
-func New() *Server {
+func New(id int, self string, peers []string) *Server {
 	return &Server{
 		counters: make(map[string]int64),
+		id: id,
+		self: self,
+		peers: peers,
 	}
 }
 

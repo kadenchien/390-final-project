@@ -155,10 +155,10 @@ This guarantees exactly-once execution: if the leader dies after replicating but
 
 ### Phase 2 — Leader Election (VR-style view change)
 
-- [ ] Add static membership list to each server config (all three addresses)
-- [ ] Implement `Ping` RPC handler on every server
-- [ ] Implement heartbeat goroutine: ping leader every 200ms, track consecutive misses
-- [ ] On 3 missed pings: increment `view_number`, compute new leader, broadcast `ViewChange`
+- [x] Add static membership list to each server config (all three addresses)
+- [x] Implement `Ping` RPC handler on every server
+- [x] Implement heartbeat goroutine: ping leader every 200ms, track consecutive misses
+- [x] On 3 missed pings: increment `view_number`, compute new leader, broadcast `ViewChange`
 - [ ] Implement `ViewChange` RPC handler: accept view when majority agrees on same `view_number`
 - [ ] Leader refuses requests and returns `Unavailable` during view-change window
 - [ ] New leader begins serving once view is committed

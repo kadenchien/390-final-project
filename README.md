@@ -312,17 +312,34 @@ With all five servers running, kill the current leader (`Ctrl+C` on its terminal
 2026/04/16 02:32:56 [localhost:50053] committed view 2, new leader localhost:5005
 ```
 
-# Run the interactive client (connects to initial leader at :50051)
-go run ./cmd/client --servers=localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055
+### Testing Phase 3 — Transparent Failover (demo script)
 
-# Run the load generator (100 goroutines, 10 increments each, kill leader after 500 RPCs)
-go run ./cmd/loadgen \
-  --servers=localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055 \
-  --goroutines=100 \
-  --increments=10 \
-  --kill-after=500 \
-  --kill-signal=SIGKILL \
-  --out=results/hard_crash.csv
+`scripts/demo.sh` runs the full failover scenario end-to-end: it builds the binaries, starts all five servers in the background, streams 100 increments at 300ms intervals, kills the leader partway through, and waits for the client to finish. Server logs are written to `/tmp/server{1-5}.log`.
+
+```bash
+# Make the scripts executable (one-time)
+chmod +x scripts/demo.sh scripts/stop.sh
+
+# Run the full demo
+./scripts/demo.sh
+```
+
+The client uses `--continuous` (keep incrementing until the target is reached) and `--sleep 300ms` (pause between increments). After ~40 increments the script sends `SIGKILL` to the leader process. The interceptor chain detects the failure, rebinds to the new leader, and completes all 100 increments without manual intervention.
+
+You can also drive the client manually with the same flags:
+
+```bash
+go run ./cmd/client \
+  --servers localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055 \
+  --counter demo \
+  --increments 100 \
+  --sleep 300ms
+```
+
+To stop all background server processes after a demo run:
+
+```bash
+./scripts/stop.sh
 ```
 
 ## Project Setup

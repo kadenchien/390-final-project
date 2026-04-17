@@ -43,6 +43,12 @@ func (l *LeaderInterceptor) Conn() *grpc.ClientConn {
 	return l.currConn
 }
 
+func (l *LeaderInterceptor) CurrentLeader() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.leaderAddr
+}
+
 func (l *LeaderInterceptor) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -101,15 +107,21 @@ func (l *LeaderInterceptor) Unary() grpc.UnaryClientInterceptor {
 			}
 
 			// success --> check if it was a redirect
-			if incrResp, ok := reply.(*pb.IncrResponse); ok && incrResp.RedirectTo != "" {
-				log.Printf("[Interceptor] Caught redirect hint. New leader is: %s", incrResp.RedirectTo)
-
-				if bindErr := l.rebind(incrResp.RedirectTo); bindErr != nil {
+			var redirectTo string
+			switch r := reply.(type) {
+			case *pb.IncrResponse:
+				redirectTo = r.RedirectTo
+				r.RedirectTo = ""
+			case *pb.GetResponse:
+				redirectTo = r.RedirectTo
+				r.RedirectTo = ""
+			}
+			if redirectTo != "" {
+				log.Printf("[Interceptor] Caught redirect hint. New leader is: %s", redirectTo)
+				if bindErr := l.rebind(redirectTo); bindErr != nil {
 					return fmt.Errorf("failed to rebind: %w", bindErr)
 				}
-				
-				incrResp.RedirectTo = ""
-				continue 
+				continue
 			}
 
 			// reach here == we successfully hit the actual leader

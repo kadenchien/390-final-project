@@ -10,9 +10,16 @@ go build -o "$BIN/server" "$ROOT/cmd/server"
 go build -o "$BIN/client" "$ROOT/cmd/client"
 echo "    Done."
 
-# Kill any leftover servers from a previous run
-pkill -f "$BIN/server" 2>/dev/null || true
-sleep 0.3
+# Kill any leftover servers from a previous run (compiled binary or go run)
+pkill -f "$BIN/server"        2>/dev/null || true
+pkill -f "go run.*cmd/server" 2>/dev/null || true
+pkill -f "cmd/server"         2>/dev/null || true
+# Also kill by port to catch go run temp binaries that survive the above
+for port in 50051 50052 50053 50054 50055; do
+  pids=$(lsof -ti tcp:$port -s tcp:LISTEN 2>/dev/null) || true
+  [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+done
+sleep 1
 
 PEERS_1="localhost:50052,localhost:50053,localhost:50054,localhost:50055"
 PEERS_2="localhost:50051,localhost:50053,localhost:50054,localhost:50055"
@@ -30,13 +37,13 @@ echo "==> Starting 5 servers..."
 sleep 1
 echo "    Servers running. Initial leader: localhost:50051 (view 0)"
 echo ""
-echo "==> Streaming 100 increments (300ms apart); leader will be killed after increment 40..."
+echo "==> Streaming 60 increments (300ms apart); leader will be killed after increment 40..."
 echo ""
 
 "$BIN/client" \
   --servers "localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055" \
   --counter demo \
-  --increments 100 \
+  --increments 60 \
   --sleep 300ms &
 CLIENT_PID=$!
 

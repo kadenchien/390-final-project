@@ -65,10 +65,9 @@ func (s *Server) currentLeader() string{
 
 //dial leaderaddr and calls ping, true if response else false
 func pingLeader(addr string) bool{
-	//150ms is intentionally shorter than the 200ms time that the leader has but we can adjust accordingly, shouldn't be problem w local stuff
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-	
+
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil{
 		return false
@@ -97,6 +96,15 @@ func (s *Server) initiateViewChange() {
 	s.mu.Unlock()
 
 	log.Printf("[%s] initiating view change to view %d, new leader %s", s.self, newView, newLeader)
+
+	majority := len(s.allServers)/2 + 1
+	s.mu.RLock()
+	votes := len(s.viewVotes[newView])
+	s.mu.RUnlock()
+	if votes >= majority {
+		s.commitView(newView)
+		return
+	}
 
 	s.broadcastViewChange(newView)
 }

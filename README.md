@@ -197,11 +197,11 @@ The redirect mechanism on the server side is correct and complete — the `redir
 
 ### Phase 4 — Deduplication Cache
 
-- [ ] Add `ReplyCache` struct to each server with `map[string]CacheEntry`
-- [ ] Add cache lookup at the top of `IncrCounter` handler
-- [ ] Implement `Replicate` RPC: applies state delta and cache entry atomically on follower
-- [ ] Update leader's `IncrCounter`: replicate to all followers before responding to client
-- [ ] Add `TransferState` RPC: sends full counter table + reply cache snapshot to a joining replica
+- [x] Add `ReplyCache` struct to each server with `map[string]CacheEntry`
+- [x] Add cache lookup at the top of `IncrCounter` handler
+- [x] Implement `Replicate` RPC: applies state delta and cache entry atomically on follower
+- [x] Update leader's `IncrCounter`: replicate to all followers before responding to client
+- [x] Add `TransferState` RPC: sends full counter table + reply cache snapshot to a joining replica
 
 **Deliverable**: Inject failure mid-increment (random sleep + kill). Verify `GetCounter` returns exactly N, never N+1.
 

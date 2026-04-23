@@ -28,6 +28,8 @@ type Server struct {
 	viewNumber   int64                     // current view number (accessed atomically)
 	viewVotes    map[int64]map[string]bool // votes received per view number
 	inViewChange int32                     // 1 while a view change is in progress (accessed atomically)
+	
+	cache *ReplyCache
 }
 
 func New(id int, self string, peers []string) *Server {
@@ -42,6 +44,7 @@ func New(id int, self string, peers []string) *Server {
 		allServers: all,
 		leaderAddr: all[0], // initial leader is the first server in sorted order
 		viewVotes:  make(map[int64]map[string]bool),
+		cache: newReplyCache(),
 	}
 }
 
@@ -61,12 +64,31 @@ func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrRe
 		return nil, status.Error(codes.Unavailable, "view change in progress")
 	}
 
+	if req.ClientId != ""{
+		if cached, ok := s.cache.get(req.ClientId, req.RequestId); ok{
+			return cached, nil
+		}
+	}
+
 	s.mu.Lock()
 	s.counters[req.CounterId]++
 	val := s.counters[req.CounterId]
 	s.mu.Unlock()
 
-	return &pb.IncrResponse{NewValue: val}, nil
+	resp := &pb.IncrResponse{NewValue: val}
+
+//store in own cache then replicate counter update and cache entry to all followers before acking
+	if req.ClientId != "" {
+		s.cache.set(req.ClientId, req.RequestId, resp)
+		s.replicateToAll(&pb.ReplicateMsg{
+			CounterId: req.CounterId,
+			NewValue: val,
+			ClientId: req.ClientId,
+			RequestId: req.RequestId,
+			CachedResponse: resp,
+		})
+	}
+	return resp,nil
 }
 
 // Acquires read lock then returns current value (0 if counter doesn't exist yet).

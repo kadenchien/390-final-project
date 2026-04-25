@@ -14,16 +14,17 @@ import (
 
 // accept a port flag (default 50051), id, peers flag, and creates a grpc.Server, then registers it and starts listening
 func main() {
-	id:= flag.Int("id", 1, "server ID (1-based)")
+	id := flag.Int("id", 1, "server ID (1-based)")
 	port := flag.Int("port", 50051, "port to listen on")
 	peers := flag.String("peers", "", "comma seperated addresses of peer")
+	dedup := flag.Bool("dedup", true, "enable reply-cache deduplication")
 	flag.Parse()
 
 	var peerList []string
 	if *peers != "" {
 		for _, p := range strings.Split(*peers, ",") {
-			if addr := strings.TrimSpace(p); addr != ""{
-				peerList = append(peerList,addr)
+			if addr := strings.TrimSpace(p); addr != "" {
+				peerList = append(peerList, addr)
 			}
 		}
 	}
@@ -34,13 +35,13 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	srv := server.New(*id, self, peerList)
+	srv := server.New(*id, self, peerList, *dedup)
 	srv.StartHeartbeat()
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterCounterServiceServer(grpcServer, srv)
 
-	log.Printf("server listening on :%d", *port)
+	log.Printf("server listening on :%d (dedup=%t)", *port, *dedup)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

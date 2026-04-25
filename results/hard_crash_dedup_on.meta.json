@@ -1,0 +1,27 @@
+{
+  "servers": [
+    "localhost:52051",
+    "localhost:52052",
+    "localhost:52053",
+    "localhost:52054",
+    "localhost:52055"
+  ],
+  "counter": "hard_crash_dedup_on",
+  "workers": 4,
+  "increments_per_worker": 50,
+  "think_time": "20ms",
+  "timeout": "3s",
+  "output_csv": "/Users/claire/Documents/CS390/390-final-project/results/hard_crash_dedup_on.csv",
+  "kill_after": 80,
+  "kill_target": "leader",
+  "kill_signal": "KILL",
+  "kill_address": "",
+  "started_at_ns": 1777151367397455000,
+  "finished_at_ns": 1777151369413806000,
+  "kill_triggered_at_ns": 1777151367834766000,
+  "kill_resolved_addr": "localhost:52051",
+  "kill_pid": 94356,
+  "success_count": 200,
+  "failure_count": 0,
+  "final_counter_value": 183
+}

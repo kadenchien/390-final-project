@@ -1,0 +1,27 @@
+{
+  "servers": [
+    "localhost:52051",
+    "localhost:52052",
+    "localhost:52053",
+    "localhost:52054",
+    "localhost:52055"
+  ],
+  "counter": "follower_failure",
+  "workers": 4,
+  "increments_per_worker": 50,
+  "think_time": "20ms",
+  "timeout": "3s",
+  "output_csv": "/Users/claire/Documents/CS390/390-final-project/results/follower_failure.csv",
+  "kill_after": 80,
+  "kill_target": "follower",
+  "kill_signal": "KILL",
+  "kill_address": "",
+  "started_at_ns": 1777151371568151000,
+  "finished_at_ns": 1777151372747490000,
+  "kill_triggered_at_ns": 1777151372029672000,
+  "kill_resolved_addr": "localhost:52052",
+  "kill_pid": 94413,
+  "success_count": 200,
+  "failure_count": 0,
+  "final_counter_value": 200
+}

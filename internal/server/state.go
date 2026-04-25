@@ -28,23 +28,25 @@ type Server struct {
 	viewNumber   int64                     // current view number (accessed atomically)
 	viewVotes    map[int64]map[string]bool // votes received per view number
 	inViewChange int32                     // 1 while a view change is in progress (accessed atomically)
-	
-	cache *ReplyCache
+
+	cache        *ReplyCache
+	dedupEnabled bool
 }
 
-func New(id int, self string, peers []string) *Server {
+func New(id int, self string, peers []string, dedupEnabled bool) *Server {
 	all := append([]string{self}, peers...)
 	sort.Strings(all)
 
 	return &Server{
-		counters:   make(map[string]int64),
-		id:         id,
-		self:       self,
-		peers:      peers,
-		allServers: all,
-		leaderAddr: all[0], // initial leader is the first server in sorted order
-		viewVotes:  make(map[int64]map[string]bool),
-		cache: newReplyCache(),
+		counters:     make(map[string]int64),
+		id:           id,
+		self:         self,
+		peers:        peers,
+		allServers:   all,
+		leaderAddr:   all[0], // initial leader is the first server in sorted order
+		viewVotes:    make(map[int64]map[string]bool),
+		cache:        newReplyCache(),
+		dedupEnabled: dedupEnabled,
 	}
 }
 
@@ -64,8 +66,10 @@ func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrRe
 		return nil, status.Error(codes.Unavailable, "view change in progress")
 	}
 
-	if req.ClientId != ""{
-		if cached, ok := s.cache.get(req.ClientId, req.RequestId); ok{
+	useDedup := s.dedupEnabled && req.ClientId != ""
+
+	if useDedup {
+		if cached, ok := s.cache.get(req.ClientId, req.RequestId); ok {
 			return cached, nil
 		}
 	}
@@ -77,18 +81,22 @@ func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrRe
 
 	resp := &pb.IncrResponse{NewValue: val}
 
-//store in own cache then replicate counter update and cache entry to all followers before acking
-	if req.ClientId != "" {
-		s.cache.set(req.ClientId, req.RequestId, resp)
-		s.replicateToAll(&pb.ReplicateMsg{
-			CounterId: req.CounterId,
-			NewValue: val,
-			ClientId: req.ClientId,
-			RequestId: req.RequestId,
-			CachedResponse: resp,
-		})
+	msg := &pb.ReplicateMsg{
+		CounterId: req.CounterId,
+		NewValue:  val,
 	}
-	return resp,nil
+
+	// Store the completion record only when dedup is enabled so Phase 5 can
+	// compare exactly-once behavior with and without the cache.
+	if useDedup {
+		s.cache.set(req.ClientId, req.RequestId, resp)
+		msg.ClientId = req.ClientId
+		msg.RequestId = req.RequestId
+		msg.CachedResponse = resp
+	}
+
+	s.replicateToAll(msg)
+	return resp, nil
 }
 
 // Acquires read lock then returns current value (0 if counter doesn't exist yet).

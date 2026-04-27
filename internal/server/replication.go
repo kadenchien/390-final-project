@@ -130,23 +130,20 @@ func (s *Server) applyTransferResp(resp *pb.TransferResp) {
 func (s *Server) replicateToAll(msg *pb.ReplicateMsg) {
 	var wg sync.WaitGroup
 	for _, peer := range s.peers {
+		conn, ok := s.peerConns[peer]
+		if !ok {
+			continue
+		}
 		wg.Add(1)
-		go func(addr string) {
+		go func(addr string, c *grpc.ClientConn) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-
-			conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				log.Printf("[%s] replicateToAll: failed to dial %s: %v", s.self, addr, err)
-				return
-			}
-			defer conn.Close()
-			_, err = pb.NewCounterServiceClient(conn).Replicate(ctx, msg)
+			_, err := pb.NewCounterServiceClient(c).Replicate(ctx, msg)
 			if err != nil {
 				log.Printf("[%s] replicateToAll: Replicate to %s failed: %v", s.self, addr, err)
 			}
-		}(peer)
+		}(peer, conn)
 	}
 	wg.Wait()
 }

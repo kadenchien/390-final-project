@@ -1,1 +1,1 @@
-In this project we used AI for the original proto files to generate method stubs in phase 1. We also used it to convert our demos into bash scripts that could be run through the terminal to automate testing. 
+In this project we used AI to turn our project outline into a ReadME with deliverables and for the original proto files to generate method stubs in phase 1. We also used it to convert our demos into bash scripts that could be run through the terminal to automate testing. We also used it to help identify bugs found during our testing scripts.

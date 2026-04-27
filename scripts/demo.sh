@@ -34,7 +34,12 @@ echo "==> Starting 5 servers..."
 "$BIN/server" --id 4 --port 50054 --peers "$PEERS_4" &> /tmp/server4.log &
 "$BIN/server" --id 5 --port 50055 --peers "$PEERS_5" &> /tmp/server5.log &
 
-sleep 1
+deadline=$((SECONDS + 15))
+while [ $SECONDS -lt $deadline ]; do
+  "$BIN/client" --servers "localhost:50051,localhost:50052,localhost:50053,localhost:50054,localhost:50055" \
+    --counter _ready --increments 0 &>/dev/null && break
+  sleep 0.3
+done
 echo "    Servers running. Initial leader: localhost:50051 (view 0)"
 echo ""
 echo "==> Streaming 60 increments (300ms apart); leader will be killed after increment 40..."

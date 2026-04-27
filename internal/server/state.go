@@ -5,9 +5,12 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -31,11 +34,21 @@ type Server struct {
 
 	cache        *ReplyCache
 	dedupEnabled bool
+	replyDelay   time.Duration
+	peerConns    map[string]*grpc.ClientConn
 }
 
-func New(id int, self string, peers []string, dedupEnabled bool) *Server {
+func New(id int, self string, peers []string, dedupEnabled bool, replyDelay time.Duration) *Server {
 	all := append([]string{self}, peers...)
 	sort.Strings(all)
+
+	conns := make(map[string]*grpc.ClientConn, len(peers))
+	for _, peer := range peers {
+		conn, err := grpc.NewClient(peer, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err == nil {
+			conns[peer] = conn
+		}
+	}
 
 	return &Server{
 		counters:     make(map[string]int64),
@@ -47,6 +60,8 @@ func New(id int, self string, peers []string, dedupEnabled bool) *Server {
 		viewVotes:    make(map[int64]map[string]bool),
 		cache:        newReplyCache(),
 		dedupEnabled: dedupEnabled,
+		replyDelay:   replyDelay,
+		peerConns:    conns,
 	}
 }
 
@@ -96,6 +111,9 @@ func (s *Server) IncrCounter(_ context.Context, req *pb.IncrRequest) (*pb.IncrRe
 	}
 
 	s.replicateToAll(msg)
+	if s.replyDelay > 0 {
+		time.Sleep(s.replyDelay)
+	}
 	return resp, nil
 }
 

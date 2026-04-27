@@ -1,0 +1,27 @@
+{
+  "servers": [
+    "localhost:50051",
+    "localhost:50052",
+    "localhost:50053",
+    "localhost:50054",
+    "localhost:50055"
+  ],
+  "counter": "dedup_test",
+  "workers": 1,
+  "increments_per_worker": 20,
+  "think_time": "0s",
+  "timeout": "3s",
+  "output_csv": "/Users/kadenchien/Documents/390-final-project/results/dedup_demo_on.csv",
+  "kill_after": 10,
+  "kill_target": "leader",
+  "kill_signal": "KILL",
+  "kill_address": "",
+  "started_at_ns": 1777305100736068000,
+  "finished_at_ns": 1777305115235331000,
+  "kill_triggered_at_ns": 1777305107506648000,
+  "kill_resolved_addr": "localhost:50051",
+  "kill_pid": 70418,
+  "success_count": 20,
+  "failure_count": 0,
+  "final_counter_value": 20
+}

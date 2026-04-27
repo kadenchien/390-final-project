@@ -63,6 +63,18 @@ start_server() {
   echo $! > "$TMP/server${id}.pid"
 }
 
+wait_for_cluster() {
+  local deadline=$((SECONDS + 15))
+  while [ $SECONDS -lt $deadline ]; do
+    if "$BIN/client" --servers "$ALL_SERVERS" --counter _ready --increments 0 &>/dev/null; then
+      return 0
+    fi
+    sleep 0.3
+  done
+  echo "Cluster did not stabilize within 15s" >&2
+  exit 1
+}
+
 start_all_servers() {
   local dedup="${1:-true}"
   start_server 1 50051 "$PEERS_1" "$dedup"
@@ -70,7 +82,7 @@ start_all_servers() {
   start_server 3 50053 "$PEERS_3" "$dedup"
   start_server 4 50054 "$PEERS_4" "$dedup"
   start_server 5 50055 "$PEERS_5" "$dedup"
-  sleep 2
+  wait_for_cluster
   info "5 servers running (dedup=$dedup). Initial leader: localhost:50051 (view 0)"
 }
 

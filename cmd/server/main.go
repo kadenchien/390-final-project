@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
 	"github.com/kadenchien/390-final-project/internal/server"
@@ -18,6 +21,7 @@ func main() {
 	port := flag.Int("port", 50051, "port to listen on")
 	peers := flag.String("peers", "", "comma seperated addresses of peer")
 	dedup := flag.Bool("dedup", true, "enable reply-cache deduplication")
+	replyDelay := flag.Duration("reply-delay", 0, "artificial delay after replication, before ack (for dedup testing)")
 	flag.Parse()
 
 	var peerList []string
@@ -35,15 +39,23 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	srv := server.New(*id, self, peerList, *dedup)
+	srv := server.New(*id, self, peerList, *dedup, *replyDelay)
 	srv.PullState()
-	srv.StartHeartbeat()
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterCounterServiceServer(grpcServer, srv)
 
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
 	log.Printf("server listening on :%d (dedup=%t)", *port, *dedup)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+
+	srv.StartHeartbeat()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
+	grpcServer.GracefulStop()
 }

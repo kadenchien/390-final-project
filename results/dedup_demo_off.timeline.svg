@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+  <rect width="100%" height="100%" fill="#fffdf7"/>
+  <text x="70" y="24" font-family="Menlo, monospace" font-size="18" fill="#1f2937">Latency Timeline</text>
+  
+  <line x1="70" y1="460" x2="870" y2="460" stroke="#111827" stroke-width="1.5"/>
+  <line x1="70" y1="460" x2="70" y2="40" stroke="#111827" stroke-width="1.5"/>
+  <circle cx="74.55" cy="456.40" r="3" fill="#2563eb"/><circle cx="79.04" cy="456.44" r="3" fill="#2563eb"/><circle cx="83.59" cy="456.39" r="3" fill="#2563eb"/><circle cx="88.68" cy="455.97" r="3" fill="#2563eb"/><circle cx="93.17" cy="456.44" r="3" fill="#2563eb"/><circle cx="97.75" cy="456.37" r="3" fill="#2563eb"/><circle cx="102.40" cy="456.31" r="3" fill="#2563eb"/><circle cx="108.10" cy="455.48" r="3" fill="#2563eb"/><circle cx="113.11" cy="456.02" r="3" fill="#2563eb"/><circle cx="118.30" cy="455.89" r="3" fill="#2563eb"/><circle cx="148.77" cy="436.27" r="3" fill="#dc2626"/><circle cx="630.45" cy="78.18" r="3" fill="#dc2626"/><circle cx="660.37" cy="436.28" r="3" fill="#dc2626"/><circle cx="690.31" cy="436.27" r="3" fill="#dc2626"/><circle cx="720.27" cy="436.25" r="3" fill="#dc2626"/><circle cx="750.22" cy="436.26" r="3" fill="#dc2626"/><circle cx="780.15" cy="436.27" r="3" fill="#dc2626"/><circle cx="810.10" cy="436.26" r="3" fill="#dc2626"/><circle cx="840.05" cy="436.26" r="3" fill="#dc2626"/><circle cx="870.00" cy="436.26" r="3" fill="#dc2626"/>
+  <text x="70" y="480" font-family="Menlo, monospace" font-size="12" fill="#374151">0 ms</text>
+  <text x="870" y="480" text-anchor="end" font-family="Menlo, monospace" font-size="12" fill="#374151">112849.6 ms</text>
+  <text x="36" y="460" font-family="Menlo, monospace" font-size="12" fill="#374151">0 ms</text>
+  <text x="22" y="44" font-family="Menlo, monospace" font-size="12" fill="#374151">74741.3 ms</text>
+  <text x="450" y="502" font-family="Menlo, monospace" font-size="12" fill="#374151">Time Since Start (ms)</text>
+  <text x="20" y="260" transform="rotate(-90 20 260)" font-family="Menlo, monospace" font-size="12" fill="#374151">Latency (ms)</text>
+</svg>

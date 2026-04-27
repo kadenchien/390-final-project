@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+  <rect width="100%" height="100%" fill="#fffdf7"/>
+  <text x="70" y="24" font-family="Menlo, monospace" font-size="18" fill="#1f2937">Latency CDF</text>
+  <line x1="70" y1="460" x2="870" y2="460" stroke="#111827" stroke-width="1.5"/>
+  <line x1="70" y1="460" x2="70" y2="40" stroke="#111827" stroke-width="1.5"/>
+  <polyline fill="none" stroke="#0f766e" stroke-width="2" points="398.52,439.00 400.30,418.00 401.05,397.00 401.91,376.00 405.14,355.00 411.50,334.00 415.49,313.00 416.58,292.00 419.39,271.00 420.78,250.00 439.49,229.00 442.65,208.00 447.99,187.00 451.53,166.00 454.35,145.00 454.66,124.00 471.37,103.00 493.12,82.00 502.89,61.00 831.90,40.00 "/>
+  <text x="70" y="480" font-family="Menlo, monospace" font-size="12" fill="#374151">0 ms</text>
+  <text x="870" y="480" text-anchor="end" font-family="Menlo, monospace" font-size="12" fill="#374151">1502.5 ms</text>
+  <text x="42" y="460" font-family="Menlo, monospace" font-size="12" fill="#374151">0%</text>
+  <text x="32" y="44" font-family="Menlo, monospace" font-size="12" fill="#374151">100%</text>
+  <text x="450" y="502" font-family="Menlo, monospace" font-size="12" fill="#374151">Latency (ms)</text>
+  <text x="20" y="260" transform="rotate(-90 20 260)" font-family="Menlo, monospace" font-size="12" fill="#374151">CDF</text>
+  <line x1="870.73" y1="40" x2="870.73" y2="460" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="878.73" y="54" font-family="Menlo, monospace" font-size="12" fill="#b91c1c">failover 1503.9 ms</text>
+</svg>

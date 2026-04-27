@@ -1,27 +1,27 @@
 {
   "servers": [
-    "localhost:52051",
-    "localhost:52052",
-    "localhost:52053",
-    "localhost:52054",
-    "localhost:52055"
+    "localhost:50051",
+    "localhost:50052",
+    "localhost:50053",
+    "localhost:50054",
+    "localhost:50055"
   ],
   "counter": "hard_crash_dedup_off",
   "workers": 4,
   "increments_per_worker": 50,
   "think_time": "20ms",
   "timeout": "3s",
-  "output_csv": "/Users/claire/Documents/CS390/390-final-project/results/hard_crash_dedup_off.csv",
+  "output_csv": "/Users/kadenchien/Documents/390-final-project/results/hard_crash_dedup_off.csv",
   "kill_after": 80,
   "kill_target": "leader",
   "kill_signal": "KILL",
   "kill_address": "",
-  "started_at_ns": 1777151374982073000,
-  "finished_at_ns": 1777151377112248000,
-  "kill_triggered_at_ns": 1777151375550131000,
-  "kill_resolved_addr": "localhost:52051",
-  "kill_pid": 94475,
+  "started_at_ns": 1777314050201828000,
+  "finished_at_ns": 1777314052346465000,
+  "kill_triggered_at_ns": 1777314050802281000,
+  "kill_resolved_addr": "localhost:50051",
+  "kill_pid": 73950,
   "success_count": 200,
   "failure_count": 0,
-  "final_counter_value": 164
+  "final_counter_value": 200
 }

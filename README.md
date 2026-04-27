@@ -207,15 +207,15 @@ The redirect mechanism on the server side is correct and complete — the `redir
 
 ### Phase 5 — Measurement
 
-- [ ] Write `cmd/loadgen/main.go`: N goroutines each doing M sequential increments with configurable think time; record per-RPC `(start_ns, end_ns, status, attempt_count)` to CSV
-- [ ] Add a `-kill-after` flag: after a configurable number of RPCs, send `SIGTERM` or `SIGKILL` to the leader process
-- [ ] Run the following experimental conditions and collect CSVs:
+- [x] Write `cmd/loadgen/main.go`: N goroutines each doing M sequential increments with configurable think time; record per-RPC `(start_ns, end_ns, status, attempt_count)` to CSV
+- [x] Add a `-kill-after` flag: after a configurable number of RPCs, send `SIGTERM` or `SIGKILL` to the leader process
+- [x] Run the following experimental conditions and collect CSVs:
   1. **Baseline**: no failures, 5-server cluster — measure steady-state latency (p50, p95, p99)
   2. **Planned failover**: `SIGTERM` to leader — measure failover latency
   3. **Hard crash**: `SIGKILL` to leader — measure failover latency and dropped-request count
   4. **Follower failure**: kill a non-leader — system stays up, verify correctness
   5. **Dedup on vs. off**: run scenario 3 both ways — verify cache prevents duplicate increments
-- [ ] Write a small analysis script (`scripts/plot.py` or `scripts/analyze.go`) to compute p50/p95/p99 and plot latency CDF; highlight the failover window
+- [x] Write a small analysis script (`scripts/plot.py` or `scripts/analyze.go`) to compute p50/p95/p99 and plot latency CDF; highlight the failover window
 
 **Expected result**: Failover latency ≈ heartbeat interval × miss threshold + view-change RTT + rebind. With 200ms heartbeats and 3 misses: ~600–800ms for planned failover, slightly higher for hard crash.
 

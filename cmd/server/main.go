@@ -36,6 +36,7 @@ func main() {
 	}
 
 	srv := server.New(*id, self, peerList, *dedup)
+	srv.PullState()
 	srv.StartHeartbeat()
 
 	grpcServer := grpc.NewServer()

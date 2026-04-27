@@ -3,6 +3,10 @@ package server
 import (
 	"context"
 	"log"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/kadenchien/390-final-project/gen/counter"
@@ -35,9 +39,20 @@ func (s *Server) TransferState(_ context.Context, req *pb.TransferReq) (*pb.Tran
 
 	s.cache.mu.Lock()
 	var entries []*pb.CacheEntry
-	for _, resp := range s.cache.cache {
+	for key, resp := range s.cache.cache {
+		// key format is "clientID:requestID" — split on last colon
+		idx := strings.LastIndex(key, ":")
+		if idx < 0 {
+			continue
+		}
+		requestID, err := strconv.ParseInt(key[idx+1:], 10, 64)
+		if err != nil {
+			continue
+		}
 		entries = append(entries, &pb.CacheEntry{
-			Response: resp,
+			ClientId:  key[:idx],
+			RequestId: requestID,
+			Response:  resp,
 		})
 	}
 	s.cache.mu.Unlock()
@@ -45,28 +60,93 @@ func (s *Server) TransferState(_ context.Context, req *pb.TransferReq) (*pb.Tran
 	return &pb.TransferResp{
 		Counters:   counters,
 		Cache:      entries,
-		ViewNumber: s.viewNumber,
+		ViewNumber: atomic.LoadInt64(&s.viewNumber),
 	}, nil
 }
 
-// replicatetoAll sends Replicate RPC to all peers and waits for all acks before returning
-// if any follower fails, it logs but doesn't prevent from leader from responding to client
-func (s *Server) replicateToAll(msg *pb.ReplicateMsg) {
+// PullState contacts each peer in turn and applies the first successful TransferState response.
+// Called on startup so a joining or recovering server begins with current cluster state.
+func (s *Server) PullState() {
+	if len(s.peers) == 0 {
+		return
+	}
 	for _, peer := range s.peers {
+		if s.tryPullFrom(peer) {
+			return
+		}
+	}
+	log.Printf("[%s] PullState: no peers reachable, starting with empty state", s.self)
+}
+
+func (s *Server) tryPullFrom(addr string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("[%s] PullState: failed to dial %s: %v", s.self, addr, err)
+		return false
+	}
+	defer conn.Close()
+
+	resp, err := pb.NewCounterServiceClient(conn).TransferState(ctx, &pb.TransferReq{RequesterId: s.self})
+	if err != nil {
+		log.Printf("[%s] PullState: TransferState from %s failed: %v", s.self, addr, err)
+		return false
+	}
+
+	s.applyTransferResp(resp)
+	log.Printf("[%s] PullState: synced from %s (view=%d, counters=%d, cache=%d)",
+		s.self, addr, resp.ViewNumber, len(resp.Counters), len(resp.Cache))
+	return true
+}
+
+// applyTransferResp loads counters, cache, and view number received from a peer.
+func (s *Server) applyTransferResp(resp *pb.TransferResp) {
+	s.mu.Lock()
+	for k, v := range resp.Counters {
+		s.counters[k] = v
+	}
+	s.mu.Unlock()
+
+	if s.dedupEnabled {
+		for _, entry := range resp.Cache {
+			if entry.ClientId != "" && entry.Response != nil {
+				s.cache.set(entry.ClientId, entry.RequestId, entry.Response)
+			}
+		}
+	}
+
+	if resp.ViewNumber > 0 {
+		atomic.StoreInt64(&s.viewNumber, resp.ViewNumber)
+		s.mu.Lock()
+		s.leaderAddr = s.allServers[resp.ViewNumber%int64(len(s.allServers))]
+		s.mu.Unlock()
+	}
+}
+
+// replicateToAll sends Replicate RPC to all peers and waits for all acks before returning.
+// If any follower fails, it logs but doesn't prevent the leader from responding to client.
+func (s *Server) replicateToAll(msg *pb.ReplicateMsg) {
+	var wg sync.WaitGroup
+	for _, peer := range s.peers {
+		wg.Add(1)
 		go func(addr string) {
+			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
 
 			conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
-				log.Printf("[%s] replicatetoAll: failed to dial %s: %v", s.self, addr, err)
+				log.Printf("[%s] replicateToAll: failed to dial %s: %v", s.self, addr, err)
 				return
 			}
 			defer conn.Close()
 			_, err = pb.NewCounterServiceClient(conn).Replicate(ctx, msg)
 			if err != nil {
-				log.Printf("[%s] replicatedToAll: Replicate to %s failed: %v", s.self, addr, err)
+				log.Printf("[%s] replicateToAll: Replicate to %s failed: %v", s.self, addr, err)
 			}
 		}(peer)
 	}
+	wg.Wait()
 }
